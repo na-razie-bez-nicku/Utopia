@@ -1,6 +1,7 @@
 #include <types.h> 
 #include <drivers/vga.h>
 #include <drivers/screen.h>
+#include <drivers/acpi.h>
 
 extern void idt_init();
 extern void boot_all_aps(uint8_t total_cores);
@@ -22,6 +23,10 @@ extern void boot_all_aps(uint8_t total_cores);
 void kmain() {
     vga_clearscreen();
     printk("Core", "%s", UTOPIA_VERSION);
+
     idt_init();
-    boot_all_aps(4);
+    acpi_init();
+
+    int cpu_count = acpi_count_cpus();
+    boot_all_aps(cpu_count);
 }

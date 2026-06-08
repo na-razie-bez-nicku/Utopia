@@ -78,4 +78,6 @@ void boot_all_aps(uint8_t total_cores) {
             printk("CPU manager", "CPU %d failed to start/register!", id);
         }
     }
+
+    printk("CPU manager", "Finished - %d CPUs are up", total_cores);
 }
