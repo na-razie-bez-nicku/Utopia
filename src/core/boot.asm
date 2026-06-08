@@ -86,27 +86,44 @@ check_long_mode:
 	jmp error
 
 setup_page_tables:
-	mov eax, page_table_l3
-	or eax, 0b11 ; present, writable
-	mov [page_table_l4], eax
-	
-	mov eax, page_table_l2
-	or eax, 0b11 ; present, writable
-	mov [page_table_l3], eax
+    mov eax, page_table_l3
+    or eax, 0b11 
+    mov [page_table_l4], eax
 
-	mov ecx, 0
+    mov eax, page_table_l2
+    or eax, 0b11
+    mov [page_table_l3], eax
+
+    mov eax, page_table_l2_apic
+    or eax, 0b11 
+    mov [page_table_l3 + 3 * 8], eax
+
+    mov ecx, 0
 .loop:
-
-	mov eax, 0x200000 
-	mul ecx
-	or eax, 0b10000011	
+    mov eax, 0x200000 
+    mul ecx
+    or eax, 0b10000011    
     mov [page_table_l2 + ecx * 8], eax
 
-	inc ecx
-	cmp ecx, 512
-	jne .loop 
+    inc ecx
+    cmp ecx, 512
+    jne .loop 
 
-	ret
+    mov ecx, 0
+.loop_apic:
+    mov eax, 0x200000
+    mul ecx
+    add eax, 0xC0000000   
+    
+    or eax, 0b10010011  
+    
+    mov [page_table_l2_apic + ecx * 8], eax
+
+    inc ecx
+    cmp ecx, 512
+    jne .loop_apic
+
+    ret
 
 enable_paging:
 	mov eax, page_table_l4
@@ -137,13 +154,15 @@ error:
 section .bss
 align 4096
 page_table_l4:
-	resb 4096
+    resb 4096
 page_table_l3:
-	resb 4096
-page_table_l2:
-	resb 4096
+    resb 4096
+page_table_l2: 
+    resb 4096
+page_table_l2_apic: 
+    resb 4096
 stack_bottom:
-	resb 4096 * 4
+    resb 4096 * 4
 align 16
 stack_top:
 

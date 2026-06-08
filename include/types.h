@@ -32,13 +32,10 @@ typedef unsigned int uint32_t;
 typedef signed long long int64_t;
 typedef unsigned long long uint64_t;
 
-#ifndef __cplusplus
-    #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-        // W C23 bool to słowo kluczowe, nic nie rób
-    #else
-        // Dla starszych standardów (C99, C11)
-        typedef _Bool bool;
-        #define true 1
-        #define false 0
-    #endif
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+    // keyword from c23+
+#else
+    typedef _Bool bool;
+    #define true 1
+    #define false 0
 #endif

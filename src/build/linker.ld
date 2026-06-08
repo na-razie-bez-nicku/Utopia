@@ -7,6 +7,7 @@ SECTIONS
     .text : { *(.text) }
     .data : { *(.data) }
     .bss  : { *(.bss)  }
+    .trampoline  : { *(.trampoline)  }
     .stack :
     {
         . = ALIGN(16);
