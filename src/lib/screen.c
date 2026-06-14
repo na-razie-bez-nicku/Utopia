@@ -3,6 +3,7 @@
 #include <arguments.h>
 #include <numbers.h>
 #include <drivers/timer.h>
+#include <drivers/cpu.h>
 
 static uint32_t current_fg = 0xFFFFFF;
 static uint32_t current_bg = 0x000000;
@@ -113,9 +114,11 @@ void printf(const char *fmt, ...) {
 }
 
 void printk(const char *module, const char *fmt, ...) {
+    uint64_t flags = save_interrupts();
+
     // that should be pretty safe because
     // the first log comes from bootstrap processor
-    // and there is no need to use locks anyways 
+    // and there is no need to use locks anyways
     if (!spinlock_initialized) {
         spinlock_init(&fb_spinlock);
         spinlock_initialized = true;
@@ -162,4 +165,6 @@ void printk(const char *module, const char *fmt, ...) {
     framebuffer_putchar('\n', current_fg, current_bg);
 
     spinlock_release(&fb_spinlock);
+
+    restore_interrupts(flags);
 }

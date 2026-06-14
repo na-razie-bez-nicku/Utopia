@@ -3,6 +3,7 @@
 #include <drivers/screen.h>
 #include <drivers/internals/ports.h>
 #include <drivers/timer.h>
+#include <scheduler.h>
 
 static const char* cpu_exception_name(uintptr_t int_no) {
     static const char* exceptions[] = {
@@ -47,7 +48,7 @@ static const char* cpu_exception_name(uintptr_t int_no) {
     return "Unknown";
 }
 
-void isr_handler(registers_t* regs) {
+registers_t* isr_handler(registers_t* regs) {
     // -- cpu exceptions
     if (regs->int_no < 32) {
         printk("ISR interrupt handler", "CPU exception: %s", cpu_exception_name(regs->int_no));
@@ -57,11 +58,6 @@ void isr_handler(registers_t* regs) {
         while (true) continue;
     }  
 
-    // -- hardware interrupts 
-    if (regs->int_no == 32) {
-        timer_handler();
-    }
-
     // --- end of interrupt 
     if (regs->int_no >= 32 && regs->int_no <= 47) {
         if (regs->int_no >= 40) {
@@ -69,4 +65,12 @@ void isr_handler(registers_t* regs) {
         }
         outb(0x20, 0x20);      // master EOI
     }
+
+    // -- hardware interrupts 
+    if (regs->int_no == 32) {
+        timer_handler();
+        regs = scheduler_schedule(regs);
+    }
+
+    return regs;
 }

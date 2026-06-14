@@ -85,10 +85,9 @@ isr_common:
     push rax
 
     mov rdi, rsp
-    
-    sub rsp, 8 
+    sub rsp, 8
     call isr_handler
-    add rsp, 8
+    mov rsp, rax
 
     pop rax
     pop rbx

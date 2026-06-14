@@ -11,3 +11,4 @@
 -Iinclude 
 -nostdlib 
 -fno-stack-protector
+-mno-red-zone

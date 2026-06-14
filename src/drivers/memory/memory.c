@@ -1,6 +1,7 @@
 #include <types.h>
 #include <drivers/memory.h>
 #include <drivers/screen.h>
+#include <drivers/cpu.h>
 
 extern uint8_t _end;
 
@@ -91,8 +92,11 @@ void memory_init(multiboot_info_t* mbd) {
 void* malloc(size_t size) {
     if (size == 0) return NULL;
 
+    uint64_t flags = save_interrupts();
+
     size = (size + 7) & ~7;
 
+    void* result = NULL;
     heap_block_t* curr = head;
     while (curr) {
         if (curr->free && curr->size >= size) {
@@ -106,15 +110,20 @@ void* malloc(size_t size) {
                 curr->next = next;
             }
             curr->free = false;
-            return (void*)((uint8_t*)curr + sizeof(heap_block_t));
+            result = (void*)((uint8_t*)curr + sizeof(heap_block_t));
+            break;
         }
         curr = curr->next;
     }
-    return NULL;
+
+    restore_interrupts(flags);
+    return result;
 }
 
 void free(void* ptr) {
     if (!ptr) return;
+
+    uint64_t flags = save_interrupts();
 
     heap_block_t* block = (heap_block_t*)((uint8_t*)ptr - sizeof(heap_block_t));
     block->free = true;
@@ -128,6 +137,8 @@ void free(void* ptr) {
             curr = curr->next;
         }
     }
+
+    restore_interrupts(flags);
 }
 
 extern uint64_t page_table_l4[];
@@ -169,4 +180,12 @@ int memcmp(const void* a, const void* b, size_t n) {
 
 void* phys_to_virt(uint64_t phys) {
     return (void*)phys;
+}
+
+void* memset(void* dest, int val, size_t n) {
+    uint8_t* d = (uint8_t*)dest;
+    for (size_t i = 0; i < n; i++) {
+        d[i] = (uint8_t)val;
+    }
+    return dest;
 }

@@ -8,6 +8,7 @@
 #include <multiboot.h>
 #include <drivers/framebuffer.h>
 #include <drivers/timer.h>
+#include <scheduler.h>
 
 #define UTOPIA_VERSION_MAJOR "1"
 #define UTOPIA_VERSION_MINOR "0"
@@ -41,6 +42,9 @@ void kmain(multiboot_info_t* mbd) {
     memory_init(mbd);
     acpi_init();
 
+    // scheduler init
+    scheduler_init();
+
     // ap bootstrap
     int cpu_count = acpi_count_cpus();
     if (cpu_count == 0) printk("Core", "Could not start APs: ACPI returned invalid number of CPUs: %d", cpu_count);
@@ -55,5 +59,6 @@ void ap_main() {
     uint32_t id = current_processor_id();
     ap_alive_table[id] = 1;
     idt_init();
+    scheduler_ap_init();
     cpu_main();
 }
