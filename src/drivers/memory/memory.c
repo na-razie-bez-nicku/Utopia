@@ -58,6 +58,23 @@ void memory_init(multiboot_info_t* mbd) {
         }
     }
 
+    for (uint32_t i = 0; i < memory_map_count; i++) {
+        if (kernel_memory_map[i].type != 1) continue;
+
+        uint64_t region_start = kernel_memory_map[i].addr;
+        uint64_t region_end   = region_start + kernel_memory_map[i].len;
+
+        if (region_end <= 0x100000000ULL) continue;
+        if (region_start < 0x100000000ULL) region_start = 0x100000000ULL;
+
+        uint64_t map_start = region_start & ~0x1FFFFFULL;
+        uint64_t map_size  = ((region_end + 0x1FFFFFULL) & ~0x1FFFFFULL) - map_start;
+
+        if (map_physical_range(map_start, map_size, 0) != 0) {
+            printk("Memory", "Warning: failure in mappping region above 4GB at %p", map_start);
+        }
+    }
+
     uintptr_t kernel_end = ((uintptr_t)&_end + 4095) & ~4095;
 
     if (largest_free_base < kernel_end && largest_free_base + largest_free_size > kernel_end) {
@@ -143,19 +160,66 @@ void free(void* ptr) {
 
 extern uint64_t page_table_l4[];
 
+#define PT_POOL_PAGES 64
+static uint8_t pt_pool[PT_POOL_PAGES][4096] __attribute__((aligned(4096)));
+static uint32_t pt_pool_next = 0;
+
+static uint64_t* pt_pool_alloc(void) {
+    if (pt_pool_next >= PT_POOL_PAGES) return NULL;
+    uint64_t* page = (uint64_t*)pt_pool[pt_pool_next++];
+    memset(page, 0, 4096);
+    return page;
+}
+
+int map_physical_range(uint64_t phys_start, uint64_t size, uint64_t flags) {
+    uint64_t end = phys_start + size;
+    
+    for (uint64_t addr = phys_start; addr < end; addr += 0x200000) {
+        uint64_t l4_idx = (addr >> 39) & 0x1FF;
+        uint64_t l3_idx = (addr >> 30) & 0x1FF;
+        uint64_t l2_idx = (addr >> 21) & 0x1FF;
+
+        if (!(page_table_l4[l4_idx] & PAGE_PRESENT)) {
+            uint64_t* new_l3 = pt_pool_alloc();
+            if (!new_l3) return -1;
+            page_table_l4[l4_idx] = (uint64_t)(uintptr_t)new_l3 | PAGE_PRESENT | PAGE_RW;
+        }
+
+        uint64_t* l3 = (uint64_t*)(uintptr_t)(page_table_l4[l4_idx] & ~0xFFFULL);
+
+        if (!(l3[l3_idx] & PAGE_PRESENT)) {
+            uint64_t* new_l2 = pt_pool_alloc();
+            if (!new_l2) return -1;
+            l3[l3_idx] = (uint64_t)(uintptr_t)new_l2 | PAGE_PRESENT | PAGE_RW;
+        }
+
+        uint64_t* l2 = (uint64_t*)(uintptr_t)(l3[l3_idx] & ~0xFFFULL);
+
+        l2[l2_idx] = (addr & ~0x1FFFFFULL) | flags | PAGE_PRESENT | PAGE_RW | PAGE_HUGE;
+    }
+
+    return 0;
+}
+
 void set_page_permissions(uint64_t virt, uint64_t flags) {
     uint64_t l4_idx = (virt >> 39) & 0x1FF;
     uint64_t l3_idx = (virt >> 30) & 0x1FF;
     uint64_t l2_idx = (virt >> 21) & 0x1FF;
 
-    uint64_t* l3 = (uint64_t*)(page_table_l4[l4_idx] & ~0xFFF);
-    if (!l3) return;
-    
-    uint64_t* l2 = (uint64_t*)(l3[l3_idx] & ~0xFFF);
-    if (!l2) return;
+    if (!(page_table_l4[l4_idx] & PAGE_PRESENT)) return;
+    uint64_t* l3 = (uint64_t*)(uintptr_t)(page_table_l4[l4_idx] & ~0xFFFULL);
 
-    l2[l2_idx] = (l2[l2_idx] & ~0xFFF) | flags | PAGE_HUGE;
-    
+    if (!(l3[l3_idx] & PAGE_PRESENT)) return;
+    uint64_t* l2 = (uint64_t*)(uintptr_t)(l3[l3_idx] & ~0xFFFULL);
+
+    if (l2[l2_idx] & PAGE_HUGE) {
+        l2[l2_idx] = (l2[l2_idx] & ~0xFFFULL) | flags | PAGE_HUGE;
+    } else if (l2[l2_idx] & PAGE_PRESENT) {
+        uint64_t l1_idx = (virt >> 12) & 0x1FF;
+        uint64_t* l1 = (uint64_t*)(uintptr_t)(l2[l2_idx] & ~0xFFFULL);
+        l1[l1_idx] = (l1[l1_idx] & ~0xFFFULL) | flags;
+    }
+
     __asm__ volatile("invlpg (%0)" :: "r"(virt) : "memory");
 }
 

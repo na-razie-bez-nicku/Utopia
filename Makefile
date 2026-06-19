@@ -25,7 +25,7 @@ SMP_ENABLED    ?= true
 USE_HOST_CPU   ?= true
 SMP_CORES      ?= 4
 
-QEMU_FLAGS := -cdrom $(ISO_FILE) -serial stdio -m 1G
+QEMU_FLAGS := -cdrom $(ISO_FILE) -serial stdio -m 16G
 ifeq ($(SMP_ENABLED),true)
 QEMU_FLAGS += -smp $(SMP_CORES)
 endif

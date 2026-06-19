@@ -93,50 +93,76 @@ check_long_mode:
 
 setup_page_tables:
     mov eax, page_table_l3
-    or eax, 0b11 
-    mov [page_table_l4], eax
-
-    mov ecx, 0
-.loop_l3:
-    mov eax, page_table_l2
-    mov edx, 4096
-    imul edx, ecx
-    add eax, edx
     or eax, 0b11
-    mov [page_table_l3 + ecx * 8], eax
-    inc ecx
-    cmp ecx, 4
-    jne .loop_l3
+    mov [page_table_l4], eax
+    mov dword [page_table_l4 + 4], 0
 
-    mov eax, page_table_l2_apic
-    or eax, 0b11 
-    mov [page_table_l3 + 3 * 8], eax 
+    mov eax, page_table_l2_first
+    or eax, 0b11     
+    mov [page_table_l3], eax
+    mov dword [page_table_l3 + 4], 0
+
+    mov eax, page_table_l2
+    or eax, 0b11
+    mov [page_table_l3 + 1 * 8], eax
+    mov dword [page_table_l3 + 1 * 8 + 4], 0
+
+    mov eax, page_table_l2
+    add eax, 4096
+    or eax, 0b11
+    mov [page_table_l3 + 2 * 8], eax
+    mov dword [page_table_l3 + 2 * 8 + 4], 0
+
+    mov eax, page_table_l2
+    add eax, 4096 * 2
+    or eax, 0b11
+    mov [page_table_l3 + 3 * 8], eax
+    mov dword [page_table_l3 + 3 * 8 + 4], 0
+
+    mov eax, page_table_l1_low
+    or eax, 0b11
+    mov [page_table_l2_first], eax
+    mov dword [page_table_l2_first + 4], 0
 
     mov ecx, 0
-.loop:
-    mov eax, 0x200000 
-    mov edx, ecx
-    imul edx, eax
-    or edx, 0b10000011    
-    mov [page_table_l2 + ecx * 8], edx
-
-    inc ecx
-    cmp ecx, 2048
-    jne .loop 
-
-    mov ecx, 0
-.loop_apic:
-    mov eax, 0x200000
-    mul ecx
-    add eax, 0xC0000000   
-    
-    or eax, 0b10010011  
-    
-    mov [page_table_l2_apic + ecx * 8], eax
-
+.loop_l1:
+    mov eax, ecx
+    shl eax, 12  
+    or eax, 0b11    
+    mov [page_table_l1_low + ecx * 8], eax
+    mov dword [page_table_l1_low + ecx * 8 + 4], 0
     inc ecx
     cmp ecx, 512
-    jne .loop_apic
+    jne .loop_l1
+
+    mov ecx, 1
+.loop_l2_first:
+    mov eax, ecx
+    shl eax, 21    
+    or eax, 0b10000011
+    mov [page_table_l2_first + ecx * 8], eax
+    mov dword [page_table_l2_first + ecx * 8 + 4], 0
+    inc ecx
+    cmp ecx, 512
+    jne .loop_l2_first
+    mov ecx, 0
+.loop_l2:
+    mov eax, ecx
+    add eax, 512
+    mov edx, 0   
+    shl eax, 21  
+    cmp ecx, 1024 
+    jb .normal_page
+    or eax, 0b10011011 
+    jmp .store_l2
+.normal_page:
+    or eax, 0b10000011 
+.store_l2:
+    mov [page_table_l2 + ecx * 8], eax
+    mov [page_table_l2 + ecx * 8 + 4], edx
+    inc ecx
+    cmp ecx, 1536 
+    jne .loop_l2
 
     ret
 
@@ -173,10 +199,12 @@ page_table_l4:
     resb 4096
 page_table_l3:
     resb 4096
+page_table_l2_first:
+    resb 4096    
+page_table_l1_low:
+    resb 4096 
 page_table_l2:
-    resb 4096 * 4
-page_table_l2_apic:
-    resb 4096
+    resb 4096 * 3  
 stack_bottom:
     resb 4096 * 4
 align 16
