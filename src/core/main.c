@@ -24,19 +24,24 @@
         UTOPIA_VERSION_MAJOR "." UTOPIA_VERSION_MINOR "." UTOPIA_VERSION_PATCH
 #endif
 
-void cpu_main() {
+static inline void cpu_main() {
     while (true) continue;
 }
 
 void kmain(multiboot_info_t* mbd) {
+    char* cmdline = (char*) (uintptr_t) mbd->cmdline;
+    bool cmdline_is_empty = strlen(cmdline) == 0;
+
     framebuffer_init(mbd);
     printk("Core", "%s", UTOPIA_VERSION);
+    printk("Core", "Kernel command line: %s", cmdline_is_empty ? "<EMPTY>" : cmdline);
     
     // cpu init
     gdt_init();
     pic_remap(0x20, 0x28);
     idt_init();
     timer_init(100);
+    enable_umip();
 
     // misc init 
     memory_init(mbd);
@@ -60,6 +65,12 @@ void ap_main() {
     uint32_t id = current_processor_id();
     ap_alive_table[id] = 1;
     idt_init();
+    gdt_init();
+    timer_init(100);
+    enable_umip();
+
+    printk("Core", "CPU APIC ID %d fully ready, handing control to the scheduler.", id);
+    
     scheduler_ap_init();
     cpu_main();
 }

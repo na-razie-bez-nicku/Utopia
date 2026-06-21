@@ -45,7 +45,6 @@ void scheduler_init(void) {
     spinlock_init(&scheduler_lock);
     
     uint32_t cpu_id = current_processor_id();
-    printk("Scheduler", "Initializing scheduler on CPU %d", cpu_id);
 
     thread_t* main_thread = (thread_t*)malloc(sizeof(thread_t));
     if (!main_thread) {
@@ -62,13 +61,10 @@ void scheduler_init(void) {
 
     current_threads[cpu_id] = main_thread;
     idle_threads[cpu_id] = main_thread;
-
-    printk("Scheduler", "Main thread initialized for CPU %d", cpu_id);
 }
 
 void scheduler_ap_init(void) {
     uint32_t cpu_id = current_processor_id();
-    printk("Scheduler", "Initializing scheduler on AP CPU %d", cpu_id);
 
     thread_t* ap_thread = (thread_t*)malloc(sizeof(thread_t));
     if (!ap_thread) {
@@ -90,8 +86,6 @@ void scheduler_ap_init(void) {
 
     current_threads[cpu_id] = ap_thread;
     idle_threads[cpu_id] = ap_thread;
-
-    printk("Scheduler", "AP thread initialized for CPU %d", cpu_id);
 }
 
 thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg) {
@@ -101,7 +95,7 @@ thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg)
         return NULL;
     }
 
-    size_t stack_size = 8192; // 8KB stack
+    size_t stack_size = 8192; 
     void* stack_base = malloc(stack_size);
     if (!stack_base) {
         printk("Scheduler", "Failed to allocate stack for new thread '%s'!", name);
@@ -116,18 +110,14 @@ thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg)
     t->stack_size = stack_size;
     t->next = NULL;
 
-    // Setup the stack content
     uint64_t stack_bottom = (uint64_t)stack_base + stack_size;
-    stack_bottom = stack_bottom & ~15ULL; // 16-byte align
+    stack_bottom = stack_bottom & ~15ULL;
 
-    // Push thread_exit return address
     stack_bottom -= 8;
     *(uint64_t*)stack_bottom = (uint64_t)thread_exit;
 
-    // Allocate registers_t frame on stack
     registers_t* regs = (registers_t*)(stack_bottom - sizeof(registers_t));
     
-    // Clear registers frame
     memset(regs, 0, sizeof(registers_t));
 
     regs->rip = (uint64_t)entry_point;
@@ -141,7 +131,6 @@ thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg)
 
     printk("Scheduler", "Thread '%s' (ID %d) created, stack_ptr: %p", t->name, t->id, t->stack_ptr);
 
-    // Enqueue in ready list
     scheduler_enqueue(t);
 
     return t;
@@ -151,10 +140,8 @@ registers_t* scheduler_schedule(registers_t* regs) {
     uint32_t cpu_id = current_processor_id();
     thread_t* curr = current_threads[cpu_id];
 
-    // If scheduler hasn't been initialized yet for this CPU, do nothing
     if (!curr) return regs;
 
-    // 1. Process garbage list
     thread_t* garbage = NULL;
     spinlock_acquire(&scheduler_lock);
     garbage = garbage_list;
@@ -170,26 +157,19 @@ registers_t* scheduler_schedule(registers_t* regs) {
         garbage = next_garbage;
     }
 
-    // 2. Save current thread's registers
     curr->stack_ptr = regs;
 
-    // 3. Put current thread back to ready queue if it was running
-    // (and is not the idle/main thread, which we do NOT put in the ready queue)
     if (curr->state == THREAD_STATE_RUNNING && curr != idle_threads[cpu_id]) {
         curr->state = THREAD_STATE_READY;
         scheduler_enqueue(curr);
     }
 
-    // 4. Get next thread to run
     thread_t* next = scheduler_dequeue();
     if (!next) {
-        // No threads in the ready queue!
         if (curr->state != THREAD_STATE_TERMINATED) {
-            // Keep running the current thread if it's still alive
             curr->state = THREAD_STATE_RUNNING;
             return regs;
         }
-        // If current thread is terminated and nothing else is ready, fallback to idle thread
         next = idle_threads[cpu_id];
     }
 
@@ -218,8 +198,7 @@ void thread_exit(void) {
 
     thread_yield();
 
-    // Loop forever if it ever returns (should not)
-    while (1) {
+    while (true) {
         asm volatile("hlt");
     }
 }

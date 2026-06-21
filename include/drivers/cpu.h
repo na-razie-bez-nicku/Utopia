@@ -14,7 +14,8 @@ static inline uint32_t current_processor_id(void) {
 }
 
 extern void boot_all_aps(uint8_t total_cores);
-void gdt_init();
+extern void gdt_init();
+extern void enable_umip(void);
 
 static inline uint64_t save_interrupts(void) {
     uint64_t rflags;
@@ -27,4 +28,16 @@ static inline void restore_interrupts(uint64_t rflags) {
     if (rflags & (1 << 9)) {
         __asm__ volatile("sti" ::: "memory");
     }
+}
+
+#define CPU_CR4_UMIP (1UL << 11)
+
+static inline unsigned long read_cr4(void) {
+    unsigned long val;
+    asm volatile ("mov %%cr4, %0" : "=r"(val));
+    return val;
+}
+
+static inline void write_cr4(unsigned long val) {
+    asm volatile ("mov %0, %%cr4" :: "r"(val) : "memory");
 }
