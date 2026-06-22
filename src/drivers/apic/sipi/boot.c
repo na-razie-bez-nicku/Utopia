@@ -58,7 +58,7 @@ void boot_ap(uint8_t target_apic_id) {
     *lapic_low  = 0x00004670;
     delay(10000);
 
-    for (int timeout = 0; timeout < 10000; timeout++) {
+    for (int timeout = 0; timeout < 100000; timeout++) {
         if (ap_alive_table[target_apic_id] == 1) {
             break;
         }

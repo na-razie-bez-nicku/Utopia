@@ -40,8 +40,11 @@ void kmain(multiboot_info_t* mbd) {
     gdt_init();
     pic_remap(0x20, 0x28);
     idt_init();
+    printk("Core", "Debug: before timer");
     timer_init(100);
+    printk("Core", "Debug: after timer");
     enable_umip();
+    printk("Core", "Debug: after UMIP");
 
     // misc init 
     memory_init(mbd);

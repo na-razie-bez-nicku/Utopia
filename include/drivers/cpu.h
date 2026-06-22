@@ -7,6 +7,16 @@
         : "=a" (a), "=b" (b), "=c" (c), "=d" (d) \
         : "0" (level))
 
+// copied from somehwere lmfao
+static inline void __cpuid_count(unsigned int level, unsigned int count,
+                                 unsigned int *a, unsigned int *b,
+                                 unsigned int *c, unsigned int *d)
+{
+    __asm__ volatile ("cpuid"
+        : "=a" (*a), "=b" (*b), "=c" (*c), "=d" (*d)
+        : "a" (level), "c" (count));
+}
+
 static inline uint32_t current_processor_id(void) {
     uint32_t eax, ebx, ecx, edx;
     __cpuid(1, eax, ebx, ecx, edx);
