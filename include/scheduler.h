@@ -18,11 +18,12 @@ typedef struct thread {
     void* stack_base;
     size_t stack_size;
     struct thread* next;
+    int ring;
 } thread_t;
 
 void scheduler_init(void);
 void scheduler_ap_init(void);
-thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg);
+thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg, int ring);
 registers_t* scheduler_schedule(registers_t* regs);
 void thread_yield(void);
 void thread_exit(void);

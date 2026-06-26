@@ -207,14 +207,17 @@ void set_page_permissions(uint64_t virt, uint64_t flags) {
     uint64_t l2_idx = (virt >> 21) & 0x1FF;
 
     if (!(page_table_l4[l4_idx] & PAGE_PRESENT)) return;
+    page_table_l4[l4_idx] |= (flags & (PAGE_USER | PAGE_RW));
     uint64_t* l3 = (uint64_t*)(uintptr_t)(page_table_l4[l4_idx] & ~0xFFFULL);
 
     if (!(l3[l3_idx] & PAGE_PRESENT)) return;
+    l3[l3_idx] |= (flags & (PAGE_USER | PAGE_RW));
     uint64_t* l2 = (uint64_t*)(uintptr_t)(l3[l3_idx] & ~0xFFFULL);
 
     if (l2[l2_idx] & PAGE_HUGE) {
         l2[l2_idx] = (l2[l2_idx] & ~0xFFFULL) | flags | PAGE_HUGE;
     } else if (l2[l2_idx] & PAGE_PRESENT) {
+        l2[l2_idx] |= (flags & (PAGE_USER | PAGE_RW));
         uint64_t l1_idx = (virt >> 12) & 0x1FF;
         uint64_t* l1 = (uint64_t*)(uintptr_t)(l2[l2_idx] & ~0xFFFULL);
         l1[l1_idx] = (l1[l1_idx] & ~0xFFFULL) | flags;
@@ -268,4 +271,46 @@ void* memset(void* dest, int val, size_t n) {
         d[i] = (uint8_t)val;
     }
     return dest;
+}
+
+void set_page_executable(uint64_t virt, bool executable) {
+    uint64_t l4_idx = (virt >> 39) & 0x1FF;
+    uint64_t l3_idx = (virt >> 30) & 0x1FF;
+    uint64_t l2_idx = (virt >> 21) & 0x1FF;
+
+    if (!(page_table_l4[l4_idx] & PAGE_PRESENT))
+        return;
+
+    uint64_t* l3 = (uint64_t*)(uintptr_t)(page_table_l4[l4_idx] & ~0xFFFULL);
+
+    if (!(l3[l3_idx] & PAGE_PRESENT))
+        return;
+
+    uint64_t* l2 = (uint64_t*)(uintptr_t)(l3[l3_idx] & ~0xFFFULL);
+
+    if (l2[l2_idx] & PAGE_HUGE) {
+
+        if (executable) {
+            l2[l2_idx] &= ~PAGE_NX;
+        } else {
+            l2[l2_idx] |= PAGE_NX;   
+        }
+
+        __asm__ volatile("invlpg (%0)" :: "r"(virt) : "memory");
+        return;
+    }
+
+    uint64_t l1_idx = (virt >> 12) & 0x1FF;
+    uint64_t* l1 = (uint64_t*)(uintptr_t)(l2[l2_idx] & ~0xFFFULL);
+
+    if (!(l2[l2_idx] & PAGE_PRESENT))
+        return;
+
+    if (executable) {
+        l1[l1_idx] &= ~PAGE_NX; 
+    } else {
+        l1[l1_idx] |= PAGE_NX;
+    }
+
+    __asm__ volatile("invlpg (%0)" :: "r"(virt) : "memory");
 }

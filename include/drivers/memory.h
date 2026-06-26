@@ -16,6 +16,7 @@ void free(void* ptr);
 #define PAGE_RW      (1ULL << 1)
 #define PAGE_USER    (1ULL << 2)
 #define PAGE_HUGE    (1ULL << 7)
+#define PAGE_NX (1ULL << 63)
 
 void set_page_permissions(uint64_t virt, uint64_t flags);
 int map_physical_range(uint64_t phys_start, uint64_t size, uint64_t flags);

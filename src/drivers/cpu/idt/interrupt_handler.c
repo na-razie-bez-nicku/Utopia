@@ -49,6 +49,12 @@ static const char* cpu_exception_name(uintptr_t int_no) {
     return "Unknown";
 }
 
+static inline uintptr_t read_cr2(void) {
+    uintptr_t value;
+    __asm__ volatile ("mov %%cr2, %0" : "=r"(value));
+    return value;
+}
+
 registers_t* isr_handler(registers_t* regs) {
     // -- cpu exceptions
     if (regs->int_no < 32) {
@@ -56,6 +62,7 @@ registers_t* isr_handler(registers_t* regs) {
         printk("ISR interrupt handler", "Basic information: interrupt_number=%d   apic_cpu_id=%d  err_code=%p", regs->int_no, current_processor_id(), regs->err_code);
         printk("ISR interrupt handler", "Registers:  rax=%p  rbx=%p  rcx=%p  rdx=%p", regs->rax, regs->rbx, regs->rcx, regs->rdx);
         printk("ISR interrupt handler", "Registers:  rsi=%p  rdi=%p  rbp=%p  rsp=%p", regs->rsi, regs->rdi, regs->rbp, regs->rsp);
+        printk("ISR interrupt handler", "Registers:  cr2=%p  rip=%p", read_cr2(), regs->rip);
 
         // it is recommended to stop the system if cpu exception occurs in kernel mode 
         // we will do a loop instead

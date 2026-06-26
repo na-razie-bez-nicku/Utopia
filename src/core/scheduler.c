@@ -88,7 +88,7 @@ void scheduler_ap_init(void) {
     idle_threads[cpu_id] = ap_thread;
 }
 
-thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg) {
+thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg, int ring) {
     thread_t* t = (thread_t*)malloc(sizeof(thread_t));
     if (!t) {
         printk("Scheduler", "Failed to allocate TCB for new thread '%s'!", name);
@@ -102,6 +102,7 @@ thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg)
         free(t);
         return NULL;
     }
+    if (ring == 3) set_page_permissions((uintptr_t)stack_base, PAGE_RW | PAGE_USER | PAGE_PRESENT);
 
     t->id = next_thread_id++;
     strcpy(t->name, name);
@@ -121,10 +122,10 @@ thread_t* thread_create(const char* name, void (*entry_point)(void*), void* arg)
     memset(regs, 0, sizeof(registers_t));
 
     regs->rip = (uint64_t)entry_point;
-    regs->rdi = (uint64_t)arg; // first parameter in x86_64 Calling Convention
-    regs->cs = 0x08;           // Kernel Code Segment
-    regs->ss = 0x10;           // Kernel Data Segment
-    regs->rflags = 0x202;      // Enabled interrupts
+    regs->rdi = (uint64_t)arg;
+    regs->cs = ring == 0 ? 0x08 : (0x18 | 3); 
+    regs->ss = ring == 0 ? 0x10 : (0x20 | 3);   
+    regs->rflags = 0x202; // Enabled interrupts
     regs->rsp = (uint64_t)stack_bottom;
 
     t->stack_ptr = regs;

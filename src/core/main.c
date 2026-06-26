@@ -28,6 +28,8 @@ static inline void cpu_main() {
     while (true) continue;
 }
 
+extern void set_page_executable(uint64_t virt, bool executable);
+
 void kmain(multiboot_info_t* mbd) {
     framebuffer_init(mbd);
     printk("Core", "%s", UTOPIA_VERSION);
@@ -57,9 +59,19 @@ void kmain(multiboot_info_t* mbd) {
 
     // ap bootstrap
     int cpu_count = acpi_count_cpus();
-    if (cpu_count == 0) printk("Core", "Could not start APs: ACPI returned invalid number of CPUs: %d", cpu_count);
+    if (cpu_count < 1) printk("Core", "Could not start APs: ACPI returned invalid number of CPUs: %d", cpu_count);
     else if (cpu_count == 1) printk("Core", "One CPU detected, skipping SMP initialization.");
     else boot_all_aps(cpu_count);
+
+    // run base tasks
+    extern char ring_3_program_end[];
+    extern char ring_3_program[];
+    const uintptr_t ring_3_program_size = (uintptr_t)ring_3_program_end - (uintptr_t)ring_3_program;
+    void* ring_3_allocated_mem = malloc(ring_3_program_size);
+    memcpy(ring_3_allocated_mem, ring_3_program, ring_3_program_size);
+    set_page_permissions((uintptr_t)ring_3_allocated_mem, PAGE_PRESENT | PAGE_RW | PAGE_USER);
+    set_page_executable((uintptr_t)ring_3_allocated_mem, true);
+    thread_create("task3", ring_3_allocated_mem, NULL, 3);
 
     cpu_main();
 }
