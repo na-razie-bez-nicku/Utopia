@@ -11,6 +11,7 @@
 #include <drivers/pci.h>
 #include <scheduler.h>
 #include <process.h>
+#include <drivers/filesystem.h>
 
 #define UTOPIA_VERSION_MAJOR "1"
 #define UTOPIA_VERSION_MINOR "0"
@@ -80,6 +81,19 @@ void kmain(multiboot_info_t* mbd) {
     #define KURWA_MAC KURWA(JA_PIERDOLE) KURWA(KOCHAM_C)
     KURWA_MAC
 #endif
+
+    // init filesystem
+    vfs_init();
+    vfs_register_driver(&ramfs_driver);
+    vfs_mount("ramfs", 0, "/");
+    vnode_t *dir = 0;
+    vnode_t *file = 0;
+    vfs_lookup("/", &dir);
+    dir->ops->mkdir(dir, "test_dir", &dir);
+    dir->ops->create(dir, "hello.txt", &file);
+    const char* msg = "this is a hello string! if u see this hello string that means u're a sigma";
+    uint64_t written = 0;
+    file->ops->write(file, msg, 17, 0, &written);
 
     // run base tasks
     extern char ring_3_program_end[];

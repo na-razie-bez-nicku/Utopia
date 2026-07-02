@@ -1,13 +1,21 @@
+#include <drivers/cpu.h>
 #include <types.h>
 #include <drivers/internals/ports.h>
+#include <drivers/screen.h>
 
 static volatile uint64_t tick = 0;
+static volatile int32_t increment_tick_cpu = -1;
 
 void timer_handler() {
+    if (increment_tick_cpu != (volatile int32_t)current_processor_id()) return;
     tick++;
 }
 
 void timer_init(uint32_t frequency) {
+    if (increment_tick_cpu == -1) increment_tick_cpu = current_processor_id();
+
+    printk("Timer", "Initializing timer at frequency %u for CPU %d", frequency, current_processor_id());
+
     uint32_t divisor = 1193180 / frequency;
 
     outb(0x43, 0x36);
