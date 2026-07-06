@@ -41,7 +41,7 @@ all: build_kernel build_iso
 $(BIN_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	@echo -e "\033[1;36m[*]\033[0m $< -> $@"
-	@gcc -g $(shell tr '\n' ' ' < compile_flags.txt) -c $< -o $@
+	@gcc -O0 -g $(shell tr '\n' ' ' < compile_flags.txt) -c $< -o $@
 
 $(BIN_DIR)/%.o: $(SRC_DIR)/%.asm
 	@mkdir -p $(dir $@)
