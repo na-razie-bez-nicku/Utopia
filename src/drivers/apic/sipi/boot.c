@@ -20,32 +20,39 @@ volatile uint64_t ap_stack_ptr = 0;
 extern void ap_main();
 
 void boot_ap(uint8_t target_apic_id) {
-    uint8_t* trampoline_dest = (uint8_t*)0x70000;
+uint8_t* trampoline_dest = (uint8_t*)0x70000;
     size_t trampoline_size = (size_t)(ap_end - ap_start);
 
     memcpy(trampoline_dest, ap_start, trampoline_size);
 
-    extern uint32_t ap_cr3_ptr;
-    extern uint32_t ap_gdt_ptr;
-    extern uint32_t ap_main_ptr;
-    extern uint32_t ap_stack_ptr_trampoline;
-
-    uintptr_t cr3_off = (uintptr_t)&ap_cr3_ptr - (uintptr_t)ap_start;
-    uintptr_t gdt_off = (uintptr_t)&ap_gdt_ptr - (uintptr_t)ap_start;
-    uintptr_t main_off = (uintptr_t)&ap_main_ptr - (uintptr_t)ap_start;
-    uintptr_t stack_off = (uintptr_t)&ap_stack_ptr_trampoline - (uintptr_t)ap_start;
+    volatile uint32_t* ap_cr3   = (volatile uint32_t*)0x70F00;
+    volatile uint64_t* ap_gdt   = (volatile uint64_t*)0x70F08;
+    volatile uint64_t* ap_main_f = (volatile uint64_t*)0x70F10;
+    volatile uint64_t* ap_stack = (volatile uint64_t*)0x70F18;
 
 #if BOOTLOADER == BOOTLOADER_CODE_GRUB
     extern uint32_t page_table_l4;
     extern void* gdt64_pointer;
-    *(uint32_t*)(trampoline_dest + cr3_off) = (uint32_t)(uintptr_t)&page_table_l4;
-    *(uint32_t*)(trampoline_dest + gdt_off) = (uint32_t)(uintptr_t)&gdt64_pointer;
+    *ap_cr3 = (uint32_t)(uintptr_t)&page_table_l4;
+    *ap_gdt = (uint64_t)(uintptr_t)&gdt64_pointer;
 #elif BOOTLOADER == BOOTLOADER_CODE_LIMINE
-    *(uint32_t*)(trampoline_dest + cr3_off) = 0;
-    *(uint32_t*)(trampoline_dest + gdt_off) = 0;
+    uint64_t bsp_cr3;
+    asm volatile("mov %%cr3, %0" : "=r"(bsp_cr3));
+    *ap_cr3 = (uint32_t)bsp_cr3;
+
+    gdt_ptr_t bsp_gdt;
+    asm volatile("sgdt %0" : "=m"(bsp_gdt));
+
+    gdt_ptr_t* ap_gdt_dest = (gdt_ptr_t*)0x70F30;
+    ap_gdt_dest->limit = bsp_gdt.limit;
+    ap_gdt_dest->base  = bsp_gdt.base;
+
+    *ap_gdt = (uint64_t)(uintptr_t)ap_gdt_dest;
 #endif
-    *(uint64_t*)(trampoline_dest + main_off) = (uint64_t)(uintptr_t)ap_main;
-    *(uint64_t*)(trampoline_dest + stack_off) = (uint64_t)(uintptr_t)&kernel_stacks[target_apic_id][16384];
+
+    *ap_main_f = (uint64_t)(uintptr_t)ap_main;
+    
+    *ap_stack = (uint64_t)(uintptr_t)&kernel_stacks[target_apic_id][16384];
 
     ap_alive_table[target_apic_id] = 0;
 

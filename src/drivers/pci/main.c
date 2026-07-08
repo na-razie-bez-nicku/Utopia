@@ -45,7 +45,6 @@ int pci_is_multifunction(uint8_t bus, uint8_t slot) {
 }
 
 void pci_scan_bus() {
-    printk("PCI", "test 1");
     for (uint16_t bus = 0; bus < 256; bus++) {
         for (uint8_t slot = 0; slot < 32; slot++) {
             uint32_t id = pci_get_device_id(bus, slot, 0);

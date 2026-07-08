@@ -2,10 +2,15 @@
 
 ROOT_DIR  := .
 
-BOOTLOADER     ?= grub
+BOOTLOADER     ?= limine
+SUPPORTED_BOOTLOADERS := limine grub
+
+ifeq ($(filter $(BOOTLOADER),$(SUPPORTED_BOOTLOADERS)),)
+$(error Unsupported BOOTLOADER='$(BOOTLOADER)'. Supported values: $(SUPPORTED_BOOTLOADERS))
+endif
 
 SRC_DIR        := $(ROOT_DIR)/src
-BIN_DIR        := $(ROOT_DIR)/bin
+BIN_DIR        := $(ROOT_DIR)/bin/kernel.x86_64.$(BOOTLOADER)
 ISO_DIR        := $(ROOT_DIR)/iso
 BOOT_DIR       := $(ISO_DIR)/boot
 GRUB_DIR       := $(BOOT_DIR)/grub
