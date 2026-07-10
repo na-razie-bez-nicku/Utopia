@@ -1,61 +1,12 @@
-#include <types.h>
+#include "definitions.h"
 #include <drivers/screen.h>
 #include <drivers/memory.h>
 
 #define ACPI_MADT_SIGNATURE 0x43495041 
-#define RSDP_SIGNATURE "RSD PTR "
+#define ACPI_RSDP_SIGNATURE "RSD PTR "
 
-typedef struct {
-    char signature[8];
-    uint8_t checksum;
-    char oemid[6];
-    uint8_t revision;
-    uint32_t rsdt_address;
-
-    uint32_t length;
-    uint64_t xsdt_address;
-    uint8_t ext_checksum;
-    uint8_t reserved[3];
-} __attribute__((packed)) RSDP;
-
-typedef struct {
-    char signature[4];
-    uint32_t length;
-    uint8_t revision;
-    uint8_t checksum;
-    char oemid[6];
-    char oemtableid[8];
-    uint32_t oem_revision;
-    uint32_t creator_id;
-    uint32_t creator_revision;
-} __attribute__((packed)) ACPISDTHeader;
-
-typedef struct {
-    ACPISDTHeader header;
-    uint64_t entries[];
-} __attribute__((packed)) XSDT;
-
-typedef struct {
-    ACPISDTHeader header;
-    uint32_t lapic_addr;
-    uint32_t flags;
-    uint8_t entries[];
-} __attribute__((packed)) MADT;
-
-typedef struct {
-    uint8_t type;
-    uint8_t length;
-} __attribute__((packed)) MADTEntryHeader;
-
-typedef struct {
-    MADTEntryHeader header;
-    uint8_t acpi_processor_id;
-    uint8_t apic_id;
-    uint32_t flags;
-} __attribute__((packed)) MADTLocalAPIC;
-
-static MADT* madt = NULL;
-static RSDP* rsdp = NULL;
+static acpi_madt_t* madt = NULL;
+static acpi_rsdp_t* rsdp = NULL;
 
 static int acpi_checksum(void* table, size_t length) {
     uint8_t sum = 0;
@@ -67,11 +18,11 @@ static int acpi_checksum(void* table, size_t length) {
     return sum == 0;
 }
  
-static RSDP* scan_region(uintptr_t start, uintptr_t end) {
+static acpi_rsdp_t* scan_region(uintptr_t start, uintptr_t end) {
     for (uintptr_t addr = start; addr < end; addr += 16) {
-        RSDP* rsdp = (RSDP*)phys_to_virt(addr);
+        acpi_rsdp_t* rsdp = (acpi_rsdp_t*)phys_to_virt(addr);
 
-        if (!memcmp(rsdp->signature, RSDP_SIGNATURE, 8)) {
+        if (!memcmp(rsdp->signature, ACPI_RSDP_SIGNATURE, 8)) {
             if (!acpi_checksum(rsdp, 20))
                 continue;
 
@@ -87,21 +38,23 @@ static RSDP* scan_region(uintptr_t start, uintptr_t end) {
     return NULL;
 }
 
-RSDP* find_rsdp(void) {
+acpi_rsdp_t* find_rsdp(void) {
     uint16_t* ebda_ptr = (uint16_t*)phys_to_virt(0x40E);
     uintptr_t ebda = ((uintptr_t)(*ebda_ptr)) << 4;
 
     if (ebda) {
-        RSDP* r = scan_region(ebda, ebda + 1024);
+        acpi_rsdp_t* r = scan_region(ebda, ebda + 1024);
         if (r) return r;
     }
 
+    // TODO: there has to be a better way for this tho,
+    //       it works in QEMU and in real hardware but
+    //       is quite dirty
     printk("ACPI", "Searching BIOS region...");
-
     return scan_region(0xE0000, 0x100000);
 }
 
-static void* acpi_get_sdt_root(RSDP* rsdp) {
+static void* acpi_get_sdt_root(acpi_rsdp_t* rsdp) {
     if (!rsdp)
         return NULL;
 
@@ -111,19 +64,19 @@ static void* acpi_get_sdt_root(RSDP* rsdp) {
     return phys_to_virt(rsdp->rsdt_address);
 }
 
-MADT* acpi_find_madt() {
+acpi_madt_t* acpi_find_madt() {
     void* root = acpi_get_sdt_root(rsdp);
 
     if (!root)
         return NULL;
 
-    ACPISDTHeader* sdt = (ACPISDTHeader*)root;
+    acpi_sdt_header_t* sdt = (acpi_sdt_header_t*)root;
 
     int entry_size = (rsdp->revision >= 2) ? 8 : 4;
 
-    uint8_t* entries = (uint8_t*)sdt + sizeof(ACPISDTHeader);
+    uint8_t* entries = (uint8_t*)sdt + sizeof(acpi_sdt_header_t);
 
-    int count = (sdt->length - sizeof(ACPISDTHeader)) / entry_size;
+    int count = (sdt->length - sizeof(acpi_sdt_header_t)) / entry_size;
 
     for (int i = 0; i < count; i++) {
         uint64_t addr = 0;
@@ -136,11 +89,11 @@ MADT* acpi_find_madt() {
         if (!addr)
             continue;
 
-        ACPISDTHeader* hdr = (ACPISDTHeader*)phys_to_virt(addr);
+        acpi_sdt_header_t* hdr = (acpi_sdt_header_t*)phys_to_virt(addr);
 
         if (*(uint32_t*)hdr->signature == ACPI_MADT_SIGNATURE) {
             if (acpi_checksum(hdr, hdr->length))
-                return (MADT*)hdr;
+                return (acpi_madt_t*)hdr;
         }
     }
 
@@ -157,10 +110,10 @@ int acpi_get_cpus(uint8_t* apic_ids, int max_cpus) {
     uint8_t* end = (uint8_t*)madt + madt->header.length;
 
     while (ptr < end) {
-        MADTEntryHeader* e = (MADTEntryHeader*)ptr;
+        acpi_madt_entry_header_t* e = (acpi_madt_entry_header_t*)ptr;
 
         if (e->type == 0) {
-            MADTLocalAPIC* cpu = (MADTLocalAPIC*)ptr;
+            acpi_madt_local_apic_t* cpu = (acpi_madt_local_apic_t*)ptr;
 
             if (cpu->flags & 1) {
                 if (count < max_cpus) {
