@@ -50,3 +50,18 @@ typedef struct {
     uint8_t apic_id;
     uint32_t flags;
 } __attribute__((packed)) acpi_madt_local_apic_t;
+
+typedef struct {
+    acpi_sdt_header_t header;
+    union {
+        uint32_t raw_value;
+        struct {
+            uint8_t  hardware_revision_id; 
+            uint8_t  number_of_comparators;
+            uint8_t  counter_size_cap   : 1;     
+            uint8_t  reserved           : 1;     
+            uint8_t  legacy_irq_cap     : 1;     
+            uint16_t pci_vendor_id;
+        };
+    } event_timer_block_id;
+} __attribute__((packed)) acpi_hpet_t;
